@@ -2,9 +2,9 @@
 
 from textual import on
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal
+from textual.containers import Container
 from textual.screen import Screen
-from textual.widgets import DataTable, Input, Label, LoadingIndicator
+from textual.widgets import DataTable, Input, Label, LoadingIndicator, Header, Footer
 from textual.binding import Binding
 from textual.events import Key
 
@@ -23,17 +23,6 @@ class MainScreen(Screen):
     ]
 
     CSS = """
-    MainScreen {
-        background: $surface;
-    }
-
-    #header {
-        height: 3;
-        background: $primary;
-        color: $text;
-        padding: 1;
-    }
-
     #projects_table {
         height: 100%;
         border: solid $primary;
@@ -73,12 +62,10 @@ class MainScreen(Screen):
 
     def compose(self) -> ComposeResult:
         """Compose the main screen layout."""
-        with Container():
-            with Horizontal(id="header"):
-                yield Label("OpenProject TUI", classes="title")
-                yield Label(f"Connected to: {config.api_url}", classes="subtitle")
+        yield Header()
+        yield Footer()
 
-            # Search input - directly without container
+        with Container():
             yield Input(
                 placeholder="Search projects...", id="search_input", classes="hidden"
             )
@@ -91,14 +78,12 @@ class MainScreen(Screen):
         """Load projects when screen is mounted."""
         table = self.query_one("#projects_table", DataTable)
 
-        # Set up table columns
         table.add_column("ID", width=6)
         table.add_column("Identifier", width=20)
         table.add_column("Name", width=40)
         table.add_column("Status", width=10)
         table.add_column("Public", width=8)
 
-        # Load projects
         await self.load_projects()
 
     async def load_projects(self) -> None:
@@ -107,25 +92,20 @@ class MainScreen(Screen):
         loading = self.query_one("#loading", LoadingIndicator)
         error_label = self.query_one("#error", Label)
 
-        # Show loading indicator
         loading.display = True
         table.display = False
         error_label.display = False
 
         try:
-            # Fetch only active projects by default
             self.projects = await self.client.get_projects(active=True)
             self.filtered_projects = self.projects.copy()
 
-            # Update table with filtered projects
             self._update_table()
 
-            # Show table
             loading.display = False
             table.display = True
 
         except Exception as e:
-            # Show error
             loading.display = False
             error_label.display = True
             error_label.update(f"Error loading projects: {str(e)}")
@@ -154,21 +134,22 @@ class MainScreen(Screen):
         """Clean up when screen is unmounted."""
         await self.client.close()
 
+    async def action_quit(self) -> None:
+        """Quit the application."""
+        self.app.exit()
+
     async def action_toggle_search(self) -> None:
         """Toggle search input visibility."""
         search_input = self.query_one("#search_input", Input)
 
         if not search_input.has_class("hidden"):
-            # Hide search
             search_input.add_class("hidden")
             search_input.value = ""
             self.search_query = ""
             self._update_table()
-            # Focus table
             table = self.query_one("#projects_table", DataTable)
             table.focus()
         else:
-            # Show search
             search_input.remove_class("hidden")
             search_input.focus()
 
@@ -181,13 +162,12 @@ class MainScreen(Screen):
 
     @on(Input.Submitted)
     async def on_search_submitted(self) -> None:
-        """Handle search submission - focus on table."""
+        """Handle search submission."""
         table = self.query_one("#projects_table", DataTable)
         table.focus()
 
     async def on_key(self, event: Key) -> None:
         """Handle key events."""
-        # If search is visible and ESC is pressed, hide it
         if event.key == "escape":
             search_input = self.query_one("#search_input", Input)
             if not search_input.has_class("hidden"):
@@ -199,7 +179,6 @@ class MainScreen(Screen):
         table = self.query_one("#projects_table", DataTable)
         search_input = self.query_one("#search_input", Input)
 
-        # Filter projects
         if self.search_query:
             self.filtered_projects = [
                 p
@@ -210,7 +189,6 @@ class MainScreen(Screen):
         else:
             self.filtered_projects = self.projects.copy()
 
-        # Update table
         table.clear()
         for project in self.filtered_projects:
             table.add_row(
@@ -221,8 +199,7 @@ class MainScreen(Screen):
                 "Yes" if project.public else "No",
             )
 
-        # Don't change focus if search input is visible and has focus
+        # Keep focus on search input during active search
         if not (not search_input.has_class("hidden") and search_input.has_focus):
-            # Focus on table if we have projects
             if self.filtered_projects and table.row_count > 0:
                 table.focus()

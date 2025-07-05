@@ -6,36 +6,41 @@ from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import Screen
-from textual.widgets import DataTable, Input, Label, LoadingIndicator
-from textual.events import Key
+from textual.widgets import DataTable, Input, Label, LoadingIndicator, Header, Footer
 
 from ..client import OpenProjectClient
 from ..config import config
 from ..models import Project, WorkPackage
+from ..widgets import WorkPackagePanel
 
 
 class WorkPackagesScreen(Screen):
     """Screen to display work packages for a project."""
 
     CSS = """
-    WorkPackagesScreen {
-        align: center middle;
+    #main_container {
+        width: 100%;
+        height: 100%;
     }
 
-    #header {
-        height: 3;
-        background: $surface;
-        padding: 1;
-        border-bottom: solid $primary;
+    #list_container {
+        width: 100%;
+        height: 100%;
     }
 
-    #project_name {
-        text-style: bold;
+    #details_panel {
+        width: 0%;
+        height: 100%;
     }
+
+    #details_panel.show {
+        width: 50%;
+    }
+
 
     #work_packages_table {
         width: 100%;
-        height: 100%;
+        height: 1fr;
     }
 
     #loading {
@@ -70,11 +75,13 @@ class WorkPackagesScreen(Screen):
     """
 
     BINDINGS = [
-        ("escape", "go_back", "Back"),
+        ("q", "quit", "Quit"),
+        ("escape", "escape_action", "Back/Close"),
         ("r", "refresh", "Refresh"),
         ("enter", "select_work_package", "View Details"),
         ("/", "toggle_search", "Search"),
         ("n", "new_work_package", "New"),
+        ("e", "edit_work_package", "Edit"),
     ]
 
     def __init__(self, project: Project):
@@ -85,30 +92,36 @@ class WorkPackagesScreen(Screen):
         self.work_packages = []
         self.filtered_work_packages = []
         self.search_query = ""
+        self.selected_work_package: Optional[WorkPackage] = None
+
+        self.sub_title = f"Work Packages - {project.name}"
 
     def compose(self) -> ComposeResult:
         """Compose the work packages screen layout."""
-        with Container():
-            with Horizontal(id="header"):
-                yield Label(f"Work Packages - {self.project.name}", id="project_name")
+        yield Header()
+        yield Footer()
 
-            # Search input
-            yield Input(
-                placeholder="Search work packages...",
-                id="search_input",
-                classes="hidden",
-            )
+        with Horizontal(id="main_container"):
+            with Container(id="list_container"):
+                yield Input(
+                    placeholder="Search work packages...",
+                    id="search_input",
+                    classes="hidden",
+                )
 
-            yield DataTable(id="work_packages_table", cursor_type="row")
-            yield LoadingIndicator(id="loading")
-            yield Label("", id="error", classes="hidden")
-            yield Label("No work packages found for this project", id="empty_message")
+                yield DataTable(id="work_packages_table", cursor_type="row")
+                yield LoadingIndicator(id="loading")
+                yield Label("", id="error", classes="hidden")
+                yield Label(
+                    "No work packages found for this project", id="empty_message"
+                )
+
+            yield WorkPackagePanel(id="details_panel")
 
     async def on_mount(self) -> None:
         """Load work packages when screen is mounted."""
         table = self.query_one("#work_packages_table", DataTable)
 
-        # Set up table columns
         table.add_column("ID", width=8)
         table.add_column("Subject", width=50)
         table.add_column("Status", width=15)
@@ -116,7 +129,6 @@ class WorkPackagesScreen(Screen):
         table.add_column("Priority", width=10)
         table.add_column("Assignee", width=20)
 
-        # Load work packages
         await self.load_work_packages()
 
     async def load_work_packages(self) -> None:
@@ -126,27 +138,22 @@ class WorkPackagesScreen(Screen):
         error_label = self.query_one("#error", Label)
         empty_label = self.query_one("#empty_message", Label)
 
-        # Reset visibility
         loading.display = True
         table.display = False
         error_label.display = False
         empty_label.display = False
 
         try:
-            # Fetch work packages for the project
             self.work_packages = await self.client.get_work_packages(
                 project_id=self.project.id
             )
             self.filtered_work_packages = self.work_packages.copy()
 
-            # Update table with filtered work packages
             self._update_table()
 
-            # Show table
             loading.display = False
 
         except Exception as e:
-            # Show error
             loading.display = False
             error_label.display = True
             error_label.update(f"Error loading work packages: {str(e)}")
@@ -155,9 +162,21 @@ class WorkPackagesScreen(Screen):
         """Refresh the work packages list."""
         await self.load_work_packages()
 
-    async def action_go_back(self) -> None:
-        """Go back to the main screen."""
-        self.app.pop_screen()
+    async def action_quit(self) -> None:
+        """Quit the application."""
+        self.app.exit()
+
+    async def action_escape_action(self) -> None:
+        """Handle escape key with priority: search -> panel -> back."""
+        search_input = self.query_one("#search_input", Input)
+        panel = self.query_one("#details_panel", WorkPackagePanel)
+
+        if not search_input.has_class("hidden"):
+            await self.action_toggle_search()
+        elif panel.has_class("show"):
+            await self.action_close_panel()
+        else:
+            self.app.pop_screen()
 
     async def action_select_work_package(self) -> None:
         """Select a work package to view details."""
@@ -166,10 +185,14 @@ class WorkPackagesScreen(Screen):
             self.filtered_work_packages
         ):
             selected_wp = self.filtered_work_packages[table.cursor_row]
-            from .work_package_details import WorkPackageDetailsScreen
+            self.selected_work_package = selected_wp
 
-            # Pass the project we already have
-            self.app.push_screen(WorkPackageDetailsScreen(selected_wp, self.project))
+            panel = self.query_one("#details_panel", WorkPackagePanel)
+            panel.add_class("show")
+            panel.work_package = selected_wp
+
+            list_container = self.query_one("#list_container")
+            list_container.styles.width = "50%"
 
     @on(DataTable.RowSelected)
     async def on_datatable_row_selected(self) -> None:
@@ -185,9 +208,7 @@ class WorkPackagesScreen(Screen):
         from .work_package_form import WorkPackageFormScreen
 
         def on_dismiss(result: Optional[WorkPackage]) -> None:
-            """Handle form dismissal."""
             if result:
-                # Refresh the list to show the new work package
                 self.call_after_refresh(self.load_work_packages)
 
         self.app.push_screen(WorkPackageFormScreen(self.project), on_dismiss)
@@ -197,16 +218,13 @@ class WorkPackagesScreen(Screen):
         search_input = self.query_one("#search_input", Input)
 
         if not search_input.has_class("hidden"):
-            # Hide search
             search_input.add_class("hidden")
             search_input.value = ""
             self.search_query = ""
             self._update_table()
-            # Focus table
             table = self.query_one("#work_packages_table", DataTable)
             table.focus()
         else:
-            # Show search
             search_input.remove_class("hidden")
             search_input.focus()
 
@@ -223,22 +241,12 @@ class WorkPackagesScreen(Screen):
         table = self.query_one("#work_packages_table", DataTable)
         table.focus()
 
-    async def on_key(self, event: Key) -> None:
-        """Handle key events."""
-        # If search is visible and ESC is pressed, hide it
-        if event.key == "escape":
-            search_input = self.query_one("#search_input", Input)
-            if not search_input.has_class("hidden"):
-                await self.action_toggle_search()
-                event.stop()
-
     def _update_table(self) -> None:
         """Update table with filtered work packages."""
         table = self.query_one("#work_packages_table", DataTable)
         empty_label = self.query_one("#empty_message", Label)
         search_input = self.query_one("#search_input", Input)
 
-        # Filter work packages
         if self.search_query:
             self.filtered_work_packages = [
                 wp
@@ -250,16 +258,13 @@ class WorkPackagesScreen(Screen):
         else:
             self.filtered_work_packages = self.work_packages.copy()
 
-        # Update table
         table.clear()
 
         if not self.filtered_work_packages:
-            # Show empty state
             table.display = False
             empty_label.display = True
             return
 
-        # Hide empty state
         empty_label.display = False
         table.display = True
 
@@ -273,8 +278,38 @@ class WorkPackagesScreen(Screen):
                 wp.assignee.name if wp.assignee else "Unassigned",
             )
 
-        # Don't change focus if search input is visible and has focus
+        # Keep focus on search input during active search
         if not (not search_input.has_class("hidden") and search_input.has_focus):
-            # Focus on table if we have work packages
             if self.filtered_work_packages and table.row_count > 0:
                 table.focus()
+
+    async def action_close_panel(self) -> None:
+        """Close the details panel."""
+        panel = self.query_one("#details_panel", WorkPackagePanel)
+        panel.remove_class("show")
+        panel.work_package = None
+        self.selected_work_package = None
+
+        list_container = self.query_one("#list_container")
+        list_container.styles.width = "100%"
+
+        table = self.query_one("#work_packages_table", DataTable)
+        table.focus()
+
+    async def action_edit_work_package(self) -> None:
+        """Edit the selected work package."""
+        if not self.selected_work_package:
+            return
+
+        from .work_package_form import WorkPackageFormScreen
+
+        def on_dismiss(result: Optional[WorkPackage]) -> None:
+            if result:
+                self.selected_work_package = result
+                panel = self.query_one("#details_panel", WorkPackagePanel)
+                panel.work_package = result
+                self.call_after_refresh(self.load_work_packages)
+
+        self.app.push_screen(
+            WorkPackageFormScreen(self.project, self.selected_work_package), on_dismiss
+        )
