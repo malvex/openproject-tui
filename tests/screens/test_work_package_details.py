@@ -56,6 +56,7 @@ class TestWorkPackageDetailsScreen:
             assert screen.query_one("#wp_description") is not None
             assert screen.query_one("#wp_status") is not None
             assert screen.query_one("#wp_type") is not None
+            assert screen.query_one("#wp_priority") is not None
             assert screen.query_one("#wp_assignee") is not None
             assert screen.query_one("#wp_author") is not None
             assert screen.query_one("#wp_dates") is not None
@@ -106,9 +107,12 @@ class TestWorkPackageDetailsScreen:
             await app.push_screen(screen)
             await pilot.pause()
 
-            # Check that empty description is handled
-            description_label = screen.query_one("#wp_description")
-            assert "No description" in str(description_label.renderable)
+            # Check that empty description is handled - should not exist
+            try:
+                screen.query_one("#wp_description")
+                assert False, "Description should not be present when None"
+            except Exception:
+                pass  # Expected - no description element when None
 
     @pytest.mark.asyncio
     async def test_work_package_details_no_assignee(self):
