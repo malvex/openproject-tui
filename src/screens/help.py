@@ -88,22 +88,27 @@ class HelpScreen(Screen):
                 yield from self._create_shortcut_row(
                     "Enter", "View project work packages"
                 )
+                yield from self._create_shortcut_row("/", "Search projects")
 
                 yield Label("Work Packages Screen", classes="section-title")
                 yield from self._create_shortcut_row("r", "Refresh work packages")
                 yield from self._create_shortcut_row(
                     "Enter", "View work package details"
                 )
+                yield from self._create_shortcut_row("/", "Search work packages")
                 yield from self._create_shortcut_row("ESC", "Back to projects")
 
                 yield Label("Work Package Details", classes="section-title")
                 yield from self._create_shortcut_row("ESC", "Back to work packages")
 
+                # Search help
+                yield Label("Search", classes="section-title")
+                yield from self._create_shortcut_row("/", "Show search input")
+                yield from self._create_shortcut_row("ESC", "Hide search/Clear filter")
+                yield from self._create_shortcut_row("Enter", "Focus on results")
+
                 # Future shortcuts (commented in UI)
                 yield Label("Coming Soon", classes="section-title")
-                yield from self._create_shortcut_row(
-                    "/", "Search (not yet implemented)"
-                )
                 yield from self._create_shortcut_row(
                     "n", "New work package (not yet implemented)"
                 )

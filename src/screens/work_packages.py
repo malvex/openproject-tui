@@ -4,7 +4,8 @@ from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import Screen
-from textual.widgets import DataTable, Label, LoadingIndicator
+from textual.widgets import DataTable, Input, Label, LoadingIndicator
+from textual.events import Key
 
 from ..client import OpenProjectClient
 from ..config import config
@@ -55,12 +56,22 @@ class WorkPackagesScreen(Screen):
     .hidden {
         display: none;
     }
+
+    #search_input {
+        margin: 1 2;
+        display: block;
+    }
+
+    #search_input.hidden {
+        display: none;
+    }
     """
 
     BINDINGS = [
         ("escape", "go_back", "Back"),
         ("r", "refresh", "Refresh"),
         ("enter", "select_work_package", "View Details"),
+        ("/", "toggle_search", "Search"),
     ]
 
     def __init__(self, project: Project):
@@ -69,12 +80,21 @@ class WorkPackagesScreen(Screen):
         self.project = project
         self.client = OpenProjectClient(api_url=config.api_url, api_key=config.api_key)
         self.work_packages = []
+        self.filtered_work_packages = []
+        self.search_query = ""
 
     def compose(self) -> ComposeResult:
         """Compose the work packages screen layout."""
         with Container():
             with Horizontal(id="header"):
                 yield Label(f"Work Packages - {self.project.name}", id="project_name")
+
+            # Search input
+            yield Input(
+                placeholder="Search work packages...",
+                id="search_input",
+                classes="hidden",
+            )
 
             yield DataTable(id="work_packages_table", cursor_type="row")
             yield LoadingIndicator(id="loading")
@@ -114,33 +134,13 @@ class WorkPackagesScreen(Screen):
             self.work_packages = await self.client.get_work_packages(
                 project_id=self.project.id
             )
+            self.filtered_work_packages = self.work_packages.copy()
 
-            # Clear and populate table
-            table.clear()
-
-            if not self.work_packages:
-                # Show empty state
-                loading.display = False
-                empty_label.display = True
-                return
-
-            for wp in self.work_packages:
-                table.add_row(
-                    str(wp.id),
-                    wp.subject,
-                    wp.status.name if wp.status else "N/A",
-                    wp.type.name if wp.type else "N/A",
-                    wp.priority.name if wp.priority else "N/A",
-                    wp.assignee.name if wp.assignee else "Unassigned",
-                )
+            # Update table with filtered work packages
+            self._update_table()
 
             # Show table
             loading.display = False
-            table.display = True
-
-            # Focus on table if we have work packages
-            if self.work_packages:
-                table.focus()
 
         except Exception as e:
             # Show error
@@ -159,8 +159,10 @@ class WorkPackagesScreen(Screen):
     async def action_select_work_package(self) -> None:
         """Select a work package to view details."""
         table = self.query_one("#work_packages_table", DataTable)
-        if table.cursor_row is not None and table.cursor_row < len(self.work_packages):
-            selected_wp = self.work_packages[table.cursor_row]
+        if table.cursor_row is not None and table.cursor_row < len(
+            self.filtered_work_packages
+        ):
+            selected_wp = self.filtered_work_packages[table.cursor_row]
             from .work_package_details import WorkPackageDetailsScreen
 
             self.app.push_screen(WorkPackageDetailsScreen(selected_wp))
@@ -173,3 +175,90 @@ class WorkPackagesScreen(Screen):
     async def on_unmount(self) -> None:
         """Clean up when screen is unmounted."""
         await self.client.close()
+
+    async def action_toggle_search(self) -> None:
+        """Toggle search input visibility."""
+        search_input = self.query_one("#search_input", Input)
+
+        if not search_input.has_class("hidden"):
+            # Hide search
+            search_input.add_class("hidden")
+            search_input.value = ""
+            self.search_query = ""
+            self._update_table()
+            # Focus table
+            table = self.query_one("#work_packages_table", DataTable)
+            table.focus()
+        else:
+            # Show search
+            search_input.remove_class("hidden")
+            search_input.focus()
+
+    @on(Input.Changed)
+    async def on_input_changed(self, event: Input.Changed) -> None:
+        """Handle search input changes."""
+        if event.input.id == "search_input":
+            self.search_query = event.value.lower()
+            self._update_table()
+
+    @on(Input.Submitted)
+    async def on_search_submitted(self) -> None:
+        """Handle search submission - focus on table."""
+        table = self.query_one("#work_packages_table", DataTable)
+        table.focus()
+
+    async def on_key(self, event: Key) -> None:
+        """Handle key events."""
+        # If search is visible and ESC is pressed, hide it
+        if event.key == "escape":
+            search_input = self.query_one("#search_input", Input)
+            if not search_input.has_class("hidden"):
+                await self.action_toggle_search()
+                event.stop()
+
+    def _update_table(self) -> None:
+        """Update table with filtered work packages."""
+        table = self.query_one("#work_packages_table", DataTable)
+        empty_label = self.query_one("#empty_message", Label)
+        search_input = self.query_one("#search_input", Input)
+
+        # Filter work packages
+        if self.search_query:
+            self.filtered_work_packages = [
+                wp
+                for wp in self.work_packages
+                if self.search_query in wp.subject.lower()
+                or (wp.status and self.search_query in wp.status.name.lower())
+                or (wp.assignee and self.search_query in wp.assignee.name.lower())
+            ]
+        else:
+            self.filtered_work_packages = self.work_packages.copy()
+
+        # Update table
+        table.clear()
+
+        if not self.filtered_work_packages:
+            # Show empty state
+            table.display = False
+            empty_label.display = True
+            return
+
+        # Hide empty state
+        empty_label.display = False
+        table.display = True
+
+        for wp in self.filtered_work_packages:
+            table.add_row(
+                str(wp.id),
+                wp.subject,
+                wp.status.name if wp.status else "N/A",
+                wp.type.name if wp.type else "N/A",
+                wp.priority.name if wp.priority else "N/A",
+                wp.assignee.name if wp.assignee else "Unassigned",
+            )
+
+        # Don't change focus if search input is visible and has focus
+        if not (not search_input.has_class("hidden") and search_input.has_focus):
+            # Focus on table if we have work packages
+            if self.filtered_work_packages and table.row_count > 0:
+                table.focus()
