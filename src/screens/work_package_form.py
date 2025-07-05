@@ -16,6 +16,10 @@ from ..models import Priority, Project, Status, Type, User, WorkPackage
 class WorkPackageFormScreen(ModalScreen[Optional[WorkPackage]]):
     """Modal screen for creating or editing a work package."""
 
+    BINDINGS = [
+        ("escape", "cancel", "Cancel"),
+    ]
+
     CSS = """
     WorkPackageFormScreen {
         align: center middle;
@@ -417,6 +421,10 @@ class WorkPackageFormScreen(ModalScreen[Optional[WorkPackage]]):
     @on(Button.Pressed, "#cancel_button")
     async def on_cancel(self) -> None:
         """Handle cancel button press."""
+        self.dismiss(None)
+
+    async def action_cancel(self) -> None:
+        """Handle ESC key to cancel the form."""
         self.dismiss(None)
 
     async def on_unmount(self) -> None:

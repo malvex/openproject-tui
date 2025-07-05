@@ -113,8 +113,8 @@ class MainScreen(Screen):
         error_label.display = False
 
         try:
-            # Fetch projects
-            self.projects = await self.client.get_projects()
+            # Fetch only active projects by default
+            self.projects = await self.client.get_projects(active=True)
             self.filtered_projects = self.projects.copy()
 
             # Update table with filtered projects
