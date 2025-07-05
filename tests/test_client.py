@@ -1,10 +1,12 @@
 """Tests for the OpenProject API client."""
 
+import json
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 import httpx
 
 from src.client import OpenProjectClient, AuthenticationError, APIError
+from src.models import Project, WorkPackage
 
 
 class TestOpenProjectClient:
@@ -134,3 +136,130 @@ class TestOpenProjectClient:
             async with client:
                 pass
             mock_close.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_projects(self, client):
+        """Test fetching projects list."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "_embedded": {
+                "elements": [
+                    {
+                        "id": 1,
+                        "identifier": "demo-project",
+                        "name": "Demo Project",
+                        "active": True,
+                        "public": False,
+                        "_type": "Project",
+                        "_links": {"self": {"href": "/api/v3/projects/1"}},
+                    },
+                    {
+                        "id": 2,
+                        "identifier": "test-project",
+                        "name": "Test Project",
+                        "active": True,
+                        "public": True,
+                        "_type": "Project",
+                        "_links": {"self": {"href": "/api/v3/projects/2"}},
+                    },
+                ]
+            },
+            "_type": "Collection",
+            "total": 2,
+            "count": 2,
+            "pageSize": 25,
+            "offset": 1,
+        }
+
+        with patch.object(
+            client._client, "get", new_callable=AsyncMock, return_value=mock_response
+        ):
+            projects = await client.get_projects()
+            assert len(projects) == 2
+            assert all(isinstance(p, Project) for p in projects)
+            assert projects[0].identifier == "demo-project"
+            assert projects[1].identifier == "test-project"
+
+    @pytest.mark.asyncio
+    async def test_get_projects_with_filters(self, client):
+        """Test fetching projects with filters."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "_embedded": {"elements": []},
+            "_type": "Collection",
+            "total": 0,
+            "count": 0,
+        }
+
+        with patch.object(
+            client._client, "get", new_callable=AsyncMock, return_value=mock_response
+        ) as mock_get:
+            await client.get_projects(active=True, page=2, page_size=10)
+            mock_get.assert_called_once()
+            call_args = mock_get.call_args
+            assert call_args[0][0] == "/projects"
+            params = call_args[1]["params"]
+            assert params["offset"] == 11
+            assert params["pageSize"] == 10
+            # Check filters content, not exact JSON formatting
+            filters = json.loads(params["filters"])
+            assert filters == [{"active": {"operator": "=", "values": ["t"]}}]
+
+    @pytest.mark.asyncio
+    async def test_get_work_packages(self, client):
+        """Test fetching work packages."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "_embedded": {
+                "elements": [
+                    {
+                        "id": 1,
+                        "subject": "Fix login bug",
+                        "_type": "WorkPackage",
+                        "_embedded": {
+                            "status": {"id": 1, "name": "New", "_type": "Status"},
+                            "project": {
+                                "id": 1,
+                                "name": "Demo Project",
+                                "_type": "Project",
+                            },
+                        },
+                        "_links": {"self": {"href": "/api/v3/work_packages/1"}},
+                    }
+                ]
+            },
+            "_type": "Collection",
+            "total": 1,
+            "count": 1,
+        }
+
+        with patch.object(
+            client._client, "get", new_callable=AsyncMock, return_value=mock_response
+        ):
+            work_packages = await client.get_work_packages()
+            assert len(work_packages) == 1
+            assert isinstance(work_packages[0], WorkPackage)
+            assert work_packages[0].subject == "Fix login bug"
+
+    @pytest.mark.asyncio
+    async def test_get_project_work_packages(self, client):
+        """Test fetching work packages for a specific project."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "_embedded": {"elements": []},
+            "_type": "Collection",
+            "total": 0,
+            "count": 0,
+        }
+
+        with patch.object(
+            client._client, "get", new_callable=AsyncMock, return_value=mock_response
+        ) as mock_get:
+            await client.get_work_packages(project_id=1)
+            mock_get.assert_called_once_with(
+                "/projects/1/work_packages", params={"offset": 1, "pageSize": 25}
+            )

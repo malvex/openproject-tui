@@ -1,8 +1,11 @@
 """OpenProject API client."""
 
 import base64
-from typing import Any, Dict, Optional
+import json
+from typing import Any, Dict, Optional, List
 import httpx
+
+from .models import Project, WorkPackage
 
 
 class AuthenticationError(Exception):
@@ -120,3 +123,57 @@ class OpenProjectClient:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Exit async context manager."""
         await self.close()
+
+    async def get_projects(
+        self, active: Optional[bool] = None, page: int = 1, page_size: int = 25
+    ) -> List[Project]:
+        """Fetch projects from the API.
+
+        Args:
+            active: Filter by active status
+            page: Page number (1-based)
+            page_size: Number of items per page
+
+        Returns:
+            List of Project objects
+        """
+        params = {"offset": (page - 1) * page_size + 1, "pageSize": page_size}
+
+        # Add filters if specified
+        filters = []
+        if active is not None:
+            filters.append(
+                {"active": {"operator": "=", "values": ["t" if active else "f"]}}
+            )
+
+        if filters:
+            params["filters"] = json.dumps(filters)
+
+        response = await self._get("/projects", params=params)
+        elements = response.get("_embedded", {}).get("elements", [])
+        return [Project.from_hal_json(elem) for elem in elements]
+
+    async def get_work_packages(
+        self, project_id: Optional[int] = None, page: int = 1, page_size: int = 25
+    ) -> List[WorkPackage]:
+        """Fetch work packages from the API.
+
+        Args:
+            project_id: Filter by project ID
+            page: Page number (1-based)
+            page_size: Number of items per page
+
+        Returns:
+            List of WorkPackage objects
+        """
+        params = {"offset": (page - 1) * page_size + 1, "pageSize": page_size}
+
+        # Use project-specific endpoint if project_id is provided
+        if project_id:
+            endpoint = f"/projects/{project_id}/work_packages"
+        else:
+            endpoint = "/work_packages"
+
+        response = await self._get(endpoint, params=params)
+        elements = response.get("_embedded", {}).get("elements", [])
+        return [WorkPackage.from_hal_json(elem) for elem in elements]
