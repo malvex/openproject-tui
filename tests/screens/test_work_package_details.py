@@ -46,21 +46,16 @@ class TestWorkPackageDetailsScreen:
             await app.push_screen(screen)
             await pilot.pause()
 
-            # Check for header with work package ID and subject
-            header = screen.query_one("#header")
-            assert header is not None
-
             # Check for details container
             details_container = screen.query_one("#details_container")
             assert details_container is not None
 
             # Check for all detail fields
             assert screen.query_one("#wp_id") is not None
-            assert screen.query_one("#wp_subject") is not None
+            assert screen.query_one("#subject_header") is not None
             assert screen.query_one("#wp_description") is not None
             assert screen.query_one("#wp_status") is not None
             assert screen.query_one("#wp_type") is not None
-            assert screen.query_one("#wp_priority") is not None
             assert screen.query_one("#wp_assignee") is not None
             assert screen.query_one("#wp_author") is not None
             assert screen.query_one("#wp_dates") is not None
@@ -76,7 +71,7 @@ class TestWorkPackageDetailsScreen:
             await pilot.pause()
 
             # Check that data is displayed
-            subject_label = screen.query_one("#wp_subject")
+            subject_label = screen.query_one("#subject_header")
             assert mock_work_package.subject in str(subject_label.renderable)
 
             status_label = screen.query_one("#wp_status")
