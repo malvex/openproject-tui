@@ -1,5 +1,6 @@
 """Main screen for OpenProject TUI."""
 
+from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import Screen
@@ -131,6 +132,11 @@ class MainScreen(Screen):
             from .work_packages import WorkPackagesScreen
 
             self.app.push_screen(WorkPackagesScreen(selected_project))
+
+    @on(DataTable.RowSelected)
+    async def on_datatable_row_selected(self) -> None:
+        """Handle row selection in the data table."""
+        await self.action_select_project()
 
     async def on_unmount(self) -> None:
         """Clean up when screen is unmounted."""

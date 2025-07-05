@@ -1,5 +1,6 @@
 """Work packages screen for OpenProject TUI."""
 
+from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import Screen
@@ -162,6 +163,11 @@ class WorkPackagesScreen(Screen):
             selected_wp = self.work_packages[table.cursor_row]
             # TODO: Navigate to work package details screen
             self.app.notify(f"Selected work package: {selected_wp.subject}")
+
+    @on(DataTable.RowSelected)
+    async def on_datatable_row_selected(self) -> None:
+        """Handle row selection in the data table."""
+        await self.action_select_work_package()
 
     async def on_unmount(self) -> None:
         """Clean up when screen is unmounted."""
