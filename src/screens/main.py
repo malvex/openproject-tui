@@ -128,8 +128,9 @@ class MainScreen(Screen):
         table = self.query_one("#projects_table", DataTable)
         if table.cursor_row is not None and table.cursor_row < len(self.projects):
             selected_project = self.projects[table.cursor_row]
-            # TODO: Navigate to work packages screen
-            self.app.notify(f"Selected project: {selected_project.name}")
+            from .work_packages import WorkPackagesScreen
+
+            self.app.push_screen(WorkPackagesScreen(selected_project))
 
     async def on_unmount(self) -> None:
         """Clean up when screen is unmounted."""
