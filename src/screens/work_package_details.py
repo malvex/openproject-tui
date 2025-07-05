@@ -1,11 +1,13 @@
 """Work package details screen for OpenProject TUI."""
 
+from typing import Optional
+
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Label, ProgressBar, Static
 
-from ..models import WorkPackage
+from ..models import Project, WorkPackage
 
 
 class WorkPackageDetailsScreen(Screen):
@@ -71,12 +73,15 @@ class WorkPackageDetailsScreen(Screen):
 
     BINDINGS = [
         ("escape", "go_back", "Back"),
+        ("e", "edit", "Edit"),
     ]
 
-    def __init__(self, work_package: WorkPackage):
+    def __init__(self, work_package: WorkPackage, project: Optional[Project] = None):
         """Initialize the work package details screen."""
         super().__init__()
         self.work_package = work_package
+        # Use the provided project or the one from the work package
+        self.project = project or work_package.project
 
     def compose(self) -> ComposeResult:
         """Compose the work package details screen layout."""
@@ -211,3 +216,26 @@ class WorkPackageDetailsScreen(Screen):
     async def action_go_back(self) -> None:
         """Go back to the work packages list."""
         self.app.pop_screen()
+
+    async def action_edit(self) -> None:
+        """Edit this work package."""
+        from .work_package_form import WorkPackageFormScreen
+
+        def on_dismiss(result: Optional[WorkPackage]) -> None:
+            """Handle form dismissal."""
+            if result:
+                # Update the current work package and refresh display
+                self.work_package = result
+                self.refresh()
+
+        # Use the project we have (either from constructor or work package)
+        if self.project:
+            self.app.push_screen(
+                WorkPackageFormScreen(self.project, self.work_package),
+                on_dismiss,
+            )
+        else:
+            # If no project available, show error
+            self.notify(
+                "Cannot edit: Project information not available", severity="error"
+            )

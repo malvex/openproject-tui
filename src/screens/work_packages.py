@@ -1,5 +1,7 @@
 """Work packages screen for OpenProject TUI."""
 
+from typing import Optional
+
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
@@ -9,7 +11,7 @@ from textual.events import Key
 
 from ..client import OpenProjectClient
 from ..config import config
-from ..models import Project
+from ..models import Project, WorkPackage
 
 
 class WorkPackagesScreen(Screen):
@@ -72,6 +74,7 @@ class WorkPackagesScreen(Screen):
         ("r", "refresh", "Refresh"),
         ("enter", "select_work_package", "View Details"),
         ("/", "toggle_search", "Search"),
+        ("n", "new_work_package", "New"),
     ]
 
     def __init__(self, project: Project):
@@ -165,7 +168,8 @@ class WorkPackagesScreen(Screen):
             selected_wp = self.filtered_work_packages[table.cursor_row]
             from .work_package_details import WorkPackageDetailsScreen
 
-            self.app.push_screen(WorkPackageDetailsScreen(selected_wp))
+            # Pass the project we already have
+            self.app.push_screen(WorkPackageDetailsScreen(selected_wp, self.project))
 
     @on(DataTable.RowSelected)
     async def on_datatable_row_selected(self) -> None:
@@ -175,6 +179,18 @@ class WorkPackagesScreen(Screen):
     async def on_unmount(self) -> None:
         """Clean up when screen is unmounted."""
         await self.client.close()
+
+    async def action_new_work_package(self) -> None:
+        """Create a new work package."""
+        from .work_package_form import WorkPackageFormScreen
+
+        def on_dismiss(result: Optional[WorkPackage]) -> None:
+            """Handle form dismissal."""
+            if result:
+                # Refresh the list to show the new work package
+                self.call_after_refresh(self.load_work_packages)
+
+        self.app.push_screen(WorkPackageFormScreen(self.project), on_dismiss)
 
     async def action_toggle_search(self) -> None:
         """Toggle search input visibility."""

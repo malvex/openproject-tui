@@ -96,9 +96,11 @@ class HelpScreen(Screen):
                     "Enter", "View work package details"
                 )
                 yield from self._create_shortcut_row("/", "Search work packages")
+                yield from self._create_shortcut_row("n", "Create new work package")
                 yield from self._create_shortcut_row("ESC", "Back to projects")
 
                 yield Label("Work Package Details", classes="section-title")
+                yield from self._create_shortcut_row("e", "Edit work package")
                 yield from self._create_shortcut_row("ESC", "Back to work packages")
 
                 # Search help
@@ -107,12 +109,10 @@ class HelpScreen(Screen):
                 yield from self._create_shortcut_row("ESC", "Hide search/Clear filter")
                 yield from self._create_shortcut_row("Enter", "Focus on results")
 
-                # Future shortcuts (commented in UI)
-                yield Label("Coming Soon", classes="section-title")
-                yield from self._create_shortcut_row(
-                    "n", "New work package (not yet implemented)"
-                )
-                yield from self._create_shortcut_row("e", "Edit (not yet implemented)")
+                # Form shortcuts
+                yield Label("Form Screen", classes="section-title")
+                yield from self._create_shortcut_row("Enter", "Submit form")
+                yield from self._create_shortcut_row("ESC", "Cancel and close")
 
     def _create_shortcut_row(self, key: str, description: str):
         """Create a row showing a keyboard shortcut."""
