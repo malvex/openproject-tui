@@ -4,7 +4,7 @@ from typing import Optional
 
 from textual import on
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal
+from textual.containers import Container
 from textual.screen import Screen
 from textual.widgets import DataTable, Input, Label, LoadingIndicator, Header, Footer
 
@@ -19,22 +19,14 @@ class WorkPackagesScreen(Screen):
 
     CSS = """
     #main_container {
-        width: 100%;
+        layout: grid;
+        grid-size: 2 1;
+        grid-columns: 1fr 0fr;
         height: 100%;
     }
 
-    #list_container {
-        width: 100%;
-        height: 100%;
-    }
-
-    #details_panel {
-        width: 0%;
-        height: 100%;
-    }
-
-    #details_panel.show {
-        width: 50%;
+    #main_container.panel-visible {
+        grid-columns: 1fr 1fr;
     }
 
 
@@ -79,7 +71,7 @@ class WorkPackagesScreen(Screen):
         ("q", "quit", "Quit"),
         ("escape", "escape_action", "Back/Close"),
         ("r", "refresh", "Refresh"),
-        ("enter", "select_work_package", "View Details"),
+        ("enter", "select_work_package", "Toggle Details"),
         ("/", "toggle_search", "Search"),
         ("n", "new_work_package", "New"),
         ("e", "edit_work_package", "Edit"),
@@ -102,7 +94,7 @@ class WorkPackagesScreen(Screen):
         yield Header()
         yield Footer()
 
-        with Horizontal(id="main_container"):
+        with Container(id="main_container"):
             with Container(id="list_container"):
                 yield Input(
                     placeholder="Search work packages...",
@@ -170,35 +162,58 @@ class WorkPackagesScreen(Screen):
     async def action_escape_action(self) -> None:
         """Handle escape key with priority: search -> panel -> back."""
         search_input = self.query_one("#search_input", Input)
-        panel = self.query_one("#details_panel", WorkPackagePanel)
+        main_container = self.query_one("#main_container")
 
         if not search_input.has_class("hidden"):
             await self.action_toggle_search()
-        elif panel.has_class("show"):
+        elif main_container.has_class("panel-visible"):
             await self.action_close_panel()
         else:
             self.app.pop_screen()
 
     async def action_select_work_package(self) -> None:
-        """Select a work package to view details."""
+        """Toggle work package details panel."""
         table = self.query_one("#work_packages_table", DataTable)
         if table.cursor_row is not None and table.cursor_row < len(
             self.filtered_work_packages
         ):
             selected_wp = self.filtered_work_packages[table.cursor_row]
-            self.selected_work_package = selected_wp
-
             panel = self.query_one("#details_panel", WorkPackagePanel)
-            panel.add_class("show")
-            panel.work_package = selected_wp
+            main_container = self.query_one("#main_container")
 
-            list_container = self.query_one("#list_container")
-            list_container.styles.width = "50%"
+            if (
+                main_container.has_class("panel-visible")
+                and self.selected_work_package == selected_wp
+            ):
+                # Hide panel if already showing this work package
+                await self.action_close_panel()
+            else:
+                # Show panel with selected work package
+                self.selected_work_package = selected_wp
+                main_container.add_class("panel-visible")
+                panel.work_package = selected_wp
 
     @on(DataTable.RowSelected)
     async def on_datatable_row_selected(self) -> None:
         """Handle row selection in the data table."""
         await self.action_select_work_package()
+
+    @on(DataTable.RowHighlighted)
+    async def on_datatable_row_highlighted(
+        self, event: DataTable.RowHighlighted
+    ) -> None:
+        """Handle row highlighting - update panel as user navigates."""
+        if event.row_key is not None:
+            row_index = event.cursor_row
+            if 0 <= row_index < len(self.filtered_work_packages):
+                work_package = self.filtered_work_packages[row_index]
+                panel = self.query_one("#details_panel", WorkPackagePanel)
+                main_container = self.query_one("#main_container")
+
+                # Only update if panel is visible
+                if main_container.has_class("panel-visible"):
+                    panel.work_package = work_package
+                    self.selected_work_package = work_package
 
     async def on_unmount(self) -> None:
         """Clean up when screen is unmounted."""
@@ -287,12 +302,11 @@ class WorkPackagesScreen(Screen):
     async def action_close_panel(self) -> None:
         """Close the details panel."""
         panel = self.query_one("#details_panel", WorkPackagePanel)
-        panel.remove_class("show")
+        main_container = self.query_one("#main_container")
+
+        main_container.remove_class("panel-visible")
         panel.work_package = None
         self.selected_work_package = None
-
-        list_container = self.query_one("#list_container")
-        list_container.styles.width = "100%"
 
         table = self.query_one("#work_packages_table", DataTable)
         table.focus()
