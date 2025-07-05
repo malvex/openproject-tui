@@ -17,8 +17,7 @@ class WorkPackagePanel(Container):
 
     DEFAULT_CSS = """
     WorkPackagePanel {
-        background: $panel;
-        border-left: solid $primary;
+        border: solid $primary;
         padding: 1;
         height: 100%;
     }

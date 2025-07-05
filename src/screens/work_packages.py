@@ -41,6 +41,7 @@ class WorkPackagesScreen(Screen):
     #work_packages_table {
         width: 100%;
         height: 1fr;
+        border: solid $primary;
     }
 
     #loading {
