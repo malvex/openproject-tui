@@ -35,7 +35,7 @@ class TestWorkPackagesScreen:
                 description="Login fails with special characters",
                 start_date="2024-01-01",
                 due_date="2024-01-15",
-                estimated_time="PT8H",
+                estimated_hours=8.0,
                 percentage_done=50,
                 created_at="2024-01-01T00:00:00Z",
                 updated_at="2024-01-02T00:00:00Z",
@@ -58,7 +58,7 @@ class TestWorkPackagesScreen:
                 description="Implement user preferences",
                 start_date="2024-01-10",
                 due_date="2024-01-20",
-                estimated_time="PT16H",
+                estimated_hours=16.0,
                 percentage_done=0,
                 created_at="2024-01-10T00:00:00Z",
                 updated_at="2024-01-10T00:00:00Z",
@@ -196,6 +196,7 @@ class TestWorkPackagesScreen:
                 mock_client.get_work_packages = AsyncMock(
                     side_effect=Exception("API Error")
                 )
+                mock_client.close = AsyncMock()
                 mock_client_class.return_value = mock_client
 
                 screen = WorkPackagesScreen(mock_project)
@@ -225,9 +226,11 @@ class TestWorkPackagesScreen:
                 await app.push_screen(screen)
                 await pilot.pause()
 
+                initial_stack_size = len(app.screen_stack)
+
                 # Press Escape
                 await pilot.press("escape")
                 await pilot.pause()
 
                 # Should pop the screen
-                assert len(app.screen_stack) < 2
+                assert len(app.screen_stack) == initial_stack_size - 1
