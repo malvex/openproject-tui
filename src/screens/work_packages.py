@@ -161,8 +161,9 @@ class WorkPackagesScreen(Screen):
         table = self.query_one("#work_packages_table", DataTable)
         if table.cursor_row is not None and table.cursor_row < len(self.work_packages):
             selected_wp = self.work_packages[table.cursor_row]
-            # TODO: Navigate to work package details screen
-            self.app.notify(f"Selected work package: {selected_wp.subject}")
+            from .work_package_details import WorkPackageDetailsScreen
+
+            self.app.push_screen(WorkPackageDetailsScreen(selected_wp))
 
     @on(DataTable.RowSelected)
     async def on_datatable_row_selected(self) -> None:
