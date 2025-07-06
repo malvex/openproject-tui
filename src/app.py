@@ -15,6 +15,7 @@ class OpenProjectApp(App):
     SUB_TITLE = "Terminal User Interface for OpenProject"
 
     BINDINGS = [
+        ("?", "show_help", "Help"),
         ("q", "quit", "Quit"),
         ("d", "toggle_dark", "Toggle dark mode"),
     ]
@@ -36,6 +37,12 @@ class OpenProjectApp(App):
         self.theme = (
             "textual-dark" if self.theme == "textual-light" else "textual-light"
         )
+
+    def action_show_help(self) -> None:
+        """Show the help screen."""
+        from .screens.help import HelpScreen
+
+        self.push_screen(HelpScreen())
 
 
 if __name__ == "__main__":

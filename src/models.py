@@ -13,6 +13,15 @@ class Status:
     name: str
     color: Optional[str] = None
 
+    @classmethod
+    def from_hal_json(cls, data: Dict[str, Any]) -> "Status":
+        """Create Status from HAL+JSON response."""
+        return cls(
+            id=data["id"],
+            name=data["name"],
+            color=data.get("color"),
+        )
+
 
 @dataclass
 class Type:
@@ -22,6 +31,15 @@ class Type:
     name: str
     color: Optional[str] = None
 
+    @classmethod
+    def from_hal_json(cls, data: Dict[str, Any]) -> "Type":
+        """Create Type from HAL+JSON response."""
+        return cls(
+            id=data["id"],
+            name=data["name"],
+            color=data.get("color"),
+        )
+
 
 @dataclass
 class Priority:
@@ -29,6 +47,14 @@ class Priority:
 
     id: int
     name: str
+
+    @classmethod
+    def from_hal_json(cls, data: Dict[str, Any]) -> "Priority":
+        """Create Priority from HAL+JSON response."""
+        return cls(
+            id=data["id"],
+            name=data["name"],
+        )
 
 
 @dataclass
@@ -85,7 +111,7 @@ class Project:
 
         return cls(
             id=data["id"],
-            identifier=data["identifier"],
+            identifier=data.get("identifier", ""),
             name=data["name"],
             active=data.get("active", True),
             public=data.get("public", False),
@@ -114,6 +140,7 @@ class WorkPackage:
     assignee: Optional[User] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    lock_version: Optional[int] = None
 
     @classmethod
     def from_hal_json(cls, data: Dict[str, Any]) -> "WorkPackage":
@@ -135,42 +162,17 @@ class WorkPackage:
         if updated_str := data.get("updatedAt"):
             updated_at = datetime.fromisoformat(updated_str.replace("Z", "+00:00"))
 
-        # Parse embedded resources
+        # Parse embedded resources - OpenProject can put these in either _embedded or _links
         embedded = data.get("_embedded", {})
+        links = data.get("_links", {})
 
-        status = None
-        if status_data := embedded.get("status"):
-            status = Status(
-                id=status_data["id"],
-                name=status_data["name"],
-                color=status_data.get("color"),
-            )
-
-        type_obj = None
-        if type_data := embedded.get("type"):
-            type_obj = Type(
-                id=type_data["id"], name=type_data["name"], color=type_data.get("color")
-            )
-
-        priority = None
-        if priority_data := embedded.get("priority"):
-            priority = Priority(id=priority_data["id"], name=priority_data["name"])
-
-        project = None
-        if project_data := embedded.get("project"):
-            project = Project(
-                id=project_data["id"],
-                identifier=project_data.get("identifier", ""),
-                name=project_data["name"],
-            )
-
-        author = None
-        if author_data := embedded.get("author"):
-            author = User(id=author_data["id"], name=author_data.get("name", ""))
-
-        assignee = None
-        if assignee_data := embedded.get("assignee"):
-            assignee = User(id=assignee_data["id"], name=assignee_data.get("name", ""))
+        # Parse related resources
+        status = cls._parse_status(embedded.get("status"), links.get("status"))
+        type_obj = cls._parse_type(embedded.get("type"), links.get("type"))
+        priority = cls._parse_priority(embedded.get("priority"), links.get("priority"))
+        project = cls._parse_project(embedded.get("project"), links.get("project"))
+        author = cls._parse_user(embedded.get("author"), links.get("author"))
+        assignee = cls._parse_user(embedded.get("assignee"), links.get("assignee"))
 
         return cls(
             id=data["id"],
@@ -188,6 +190,7 @@ class WorkPackage:
             assignee=assignee,
             created_at=created_at,
             updated_at=updated_at,
+            lock_version=data.get("lockVersion"),
         )
 
     @staticmethod
@@ -220,3 +223,93 @@ class WorkPackage:
             minutes = float(minutes_part)
 
         return hours + (minutes / 60.0)
+
+    @staticmethod
+    def _extract_id_from_href(href: str) -> Optional[int]:
+        """Extract ID from API href like /api/v3/statuses/1"""
+        if href:
+            parts = href.rstrip("/").split("/")
+            if parts:
+                try:
+                    return int(parts[-1])
+                except (ValueError, IndexError):
+                    pass
+        return None
+
+    @classmethod
+    def _parse_status(
+        cls, embedded_data: Optional[Dict], link_data: Optional[Dict]
+    ) -> Optional[Status]:
+        """Parse status from embedded data or link."""
+        if embedded_data:
+            return Status.from_hal_json(embedded_data)
+        elif link_data:
+            if status_id := cls._extract_id_from_href(link_data.get("href", "")):
+                return Status(
+                    id=status_id,
+                    name=link_data.get("title", f"Status {status_id}"),
+                    color=None,
+                )
+        return None
+
+    @classmethod
+    def _parse_type(
+        cls, embedded_data: Optional[Dict], link_data: Optional[Dict]
+    ) -> Optional[Type]:
+        """Parse type from embedded data or link."""
+        if embedded_data:
+            return Type.from_hal_json(embedded_data)
+        elif link_data:
+            if type_id := cls._extract_id_from_href(link_data.get("href", "")):
+                return Type(
+                    id=type_id,
+                    name=link_data.get("title", f"Type {type_id}"),
+                    color=None,
+                )
+        return None
+
+    @classmethod
+    def _parse_priority(
+        cls, embedded_data: Optional[Dict], link_data: Optional[Dict]
+    ) -> Optional[Priority]:
+        """Parse priority from embedded data or link."""
+        if embedded_data:
+            return Priority.from_hal_json(embedded_data)
+        elif link_data:
+            if priority_id := cls._extract_id_from_href(link_data.get("href", "")):
+                return Priority(
+                    id=priority_id,
+                    name=link_data.get("title", f"Priority {priority_id}"),
+                )
+        return None
+
+    @classmethod
+    def _parse_project(
+        cls, embedded_data: Optional[Dict], link_data: Optional[Dict]
+    ) -> Optional[Project]:
+        """Parse project from embedded data or link."""
+        if embedded_data:
+            return Project.from_hal_json(embedded_data)
+        elif link_data:
+            if project_id := cls._extract_id_from_href(link_data.get("href", "")):
+                return Project(
+                    id=project_id,
+                    identifier="",  # Not available in link
+                    name=link_data.get("title", f"Project {project_id}"),
+                )
+        return None
+
+    @classmethod
+    def _parse_user(
+        cls, embedded_data: Optional[Dict], link_data: Optional[Dict]
+    ) -> Optional[User]:
+        """Parse user from embedded data or link."""
+        if embedded_data:
+            return User.from_hal_json(embedded_data)
+        elif link_data:
+            if user_id := cls._extract_id_from_href(link_data.get("href", "")):
+                return User(
+                    id=user_id,
+                    name=link_data.get("title", f"User {user_id}"),
+                )
+        return None
