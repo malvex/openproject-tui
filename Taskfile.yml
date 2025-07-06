@@ -1,0 +1,27 @@
+version: '3'
+
+tasks:
+  install:
+    desc: Install dependencies
+    cmds:
+      - poetry install
+
+  run:
+    desc: Run the application
+    cmds:
+      - poetry run python -m src
+
+  test:
+    desc: Run tests
+    cmds:
+      - poetry run pytest
+
+  dev:
+    desc: Run app in development mode
+    cmds:
+      - poetry run textual run --dev src.__main__:main
+
+  console:
+    desc: Open textual console
+    cmds:
+      - poetry run textual console

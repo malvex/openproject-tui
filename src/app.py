@@ -1,0 +1,43 @@
+"""Main Textual application for OpenProject TUI."""
+
+from textual.app import App, ComposeResult
+from textual.widgets import Header, Footer
+
+from .config import config
+from .screens.login import LoginScreen
+from .screens.main import MainScreen
+
+
+class OpenProjectApp(App):
+    """Main OpenProject TUI application."""
+
+    TITLE = "OpenProject TUI"
+    SUB_TITLE = "Terminal User Interface for OpenProject"
+
+    BINDINGS = [
+        ("q", "quit", "Quit"),
+        ("d", "toggle_dark", "Toggle dark mode"),
+    ]
+
+    def compose(self) -> ComposeResult:
+        """Compose the application layout."""
+        yield Header()
+        yield Footer()
+
+    def on_mount(self) -> None:
+        """Check configuration on mount."""
+        if not config.is_configured:
+            self.push_screen(LoginScreen())
+        else:
+            self.push_screen(MainScreen())
+
+    def action_toggle_dark(self) -> None:
+        """Toggle dark mode."""
+        self.theme = (
+            "textual-dark" if self.theme == "textual-light" else "textual-light"
+        )
+
+
+if __name__ == "__main__":
+    app = OpenProjectApp()
+    app.run()
