@@ -32,7 +32,12 @@ class WorkPackageFormScreen(ModalScreen[Optional[WorkPackage]]):
         background: $surface;
         border: thick $primary;
         padding: 1 2;
-        overflow-y: auto;
+        layout: vertical;
+    }
+
+    #form_scroll {
+        height: 1fr;
+        margin-bottom: 1;
     }
 
     #form_title {
@@ -64,10 +69,12 @@ class WorkPackageFormScreen(ModalScreen[Optional[WorkPackage]]):
     #buttons {
         margin-top: 2;
         align: center middle;
+        height: 3;
     }
 
     #buttons Button {
         margin: 0 1;
+        width: 10;
     }
 
     #error_message {
@@ -75,12 +82,14 @@ class WorkPackageFormScreen(ModalScreen[Optional[WorkPackage]]):
         text-align: center;
         margin-top: 1;
         display: none;
+        height: 1;
     }
 
     #loading_message {
         text-align: center;
         margin-top: 1;
         display: none;
+        height: 1;
     }
     """
 
@@ -118,7 +127,7 @@ class WorkPackageFormScreen(ModalScreen[Optional[WorkPackage]]):
         with Container(id="form_container"):
             yield Label(title, id="form_title")
 
-            with VerticalScroll():
+            with VerticalScroll(id="form_scroll"):
                 # Subject
                 with Container(classes="form-group"):
                     yield Label("Subject *", classes="form-label")
@@ -174,14 +183,14 @@ class WorkPackageFormScreen(ModalScreen[Optional[WorkPackage]]):
                         allow_blank=True,
                     )
 
-                # Buttons
-                with Horizontal(id="buttons"):
-                    yield Button("Save", variant="primary", id="save_button")
-                    yield Button("Cancel", variant="default", id="cancel_button")
+            # Messages
+            yield Label("", id="error_message")
+            yield Label("Loading options...", id="loading_message")
 
-                # Messages
-                yield Label("", id="error_message")
-                yield Label("Loading options...", id="loading_message")
+            # Buttons - outside scroll area
+            with Horizontal(id="buttons"):
+                yield Button("Save", variant="primary", id="save_button")
+                yield Button("Cancel", variant="default", id="cancel_button")
 
     async def on_mount(self) -> None:
         """Load form options when mounted."""

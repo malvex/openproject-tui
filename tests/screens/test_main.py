@@ -53,9 +53,10 @@ class TestMainScreen:
                 await app.push_screen(screen)
                 await pilot.pause()
 
-                # Check for header
-                header = screen.query_one("#header")
-                assert header is not None
+                # Check for Header widget
+                from textual.widgets import Header
+
+                assert screen.query_one(Header) is not None
 
                 # Check for projects table
                 table = screen.query_one("#projects_table")

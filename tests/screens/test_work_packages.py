@@ -86,12 +86,12 @@ class TestWorkPackagesScreen:
             await app.push_screen(screen)
             await pilot.pause()
 
-            # Check for header with project name
-            header = screen.query_one("#header")
-            assert header is not None
-            project_label = screen.query_one("#project_name")
-            assert project_label is not None
-            assert mock_project.name in project_label.renderable
+            # Check for Header widget
+            from textual.widgets import Header
+
+            assert screen.query_one(Header) is not None
+            # Project name is now in sub_title
+            assert mock_project.name in screen.sub_title
 
             # Check for work packages table
             table = screen.query_one("#work_packages_table")

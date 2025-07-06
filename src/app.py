@@ -1,7 +1,6 @@
 """Main Textual application for OpenProject TUI."""
 
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer
 
 from .config import config
 from .screens.login import LoginScreen
@@ -14,16 +13,21 @@ class OpenProjectApp(App):
     TITLE = "OpenProject TUI"
     SUB_TITLE = "Terminal User Interface for OpenProject"
 
+    CSS = """
+    Screen {
+        background: $surface;
+    }
+    """
+
     BINDINGS = [
         ("?", "show_help", "Help"),
-        ("q", "quit", "Quit"),
         ("d", "toggle_dark", "Toggle dark mode"),
     ]
 
     def compose(self) -> ComposeResult:
         """Compose the application layout."""
-        yield Header()
-        yield Footer()
+        # Empty list required by Textual - screens compose their own widgets
+        return []
 
     def on_mount(self) -> None:
         """Check configuration on mount."""
